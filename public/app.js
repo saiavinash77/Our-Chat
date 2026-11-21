@@ -442,6 +442,49 @@ function stopRecording(send) {
 $('recSend').addEventListener('click', () => stopRecording(true));
 $('recCancel').addEventListener('click', () => stopRecording(false));
 
+/* ================= Theme picker ================= */
+const THEMES = [
+  { id: 'dots',     label: 'Classic',  bg: '#efeae2' },
+  { id: 'blush',    label: 'Blush',    bg: '#fdf0f3' },
+  { id: 'sky',      label: 'Sky',      bg: '#e8f4fd' },
+  { id: 'lavender', label: 'Lavender', bg: '#f3effc' },
+  { id: 'mint',     label: 'Mint',     bg: '#e9f9f3' },
+  { id: 'sunset',   label: 'Sunset',   bg: 'linear-gradient(160deg,#fff3e0,#ffe0ec)' },
+];
+
+function applyTheme(id) {
+  const app = $('app');
+  for (const t of THEMES) app.classList.remove('theme-' + t.id);
+  if (id !== 'dots') app.classList.add('theme-' + id);
+  localStorage.wc_theme = id;
+  document.querySelectorAll('.theme-opt').forEach(b =>
+    b.classList.toggle('active', b.dataset.theme === id));
+}
+
+function initThemePicker() {
+  const wrap = $('themeOptions');
+  for (const t of THEMES) {
+    const b = document.createElement('button');
+    b.className = 'theme-opt';
+    b.dataset.theme = t.id;
+    b.title = t.label;
+    b.style.background = t.bg;
+    b.addEventListener('click', () => { applyTheme(t.id); $('themePanel').classList.add('hidden'); });
+    wrap.appendChild(b);
+  }
+  applyTheme(localStorage.wc_theme || 'dots');
+}
+
+$('menuBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  $('themePanel').classList.toggle('hidden');
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#themePanel') && e.target.id !== 'menuBtn')
+    $('themePanel').classList.add('hidden');
+});
+initThemePicker();
+
 /* ================= Toast ================= */
 let toastTimer;
 function toast(msg) {
