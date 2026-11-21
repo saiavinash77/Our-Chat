@@ -92,6 +92,13 @@ function connectSSE() {
     const { members } = JSON.parse(e.data);
     state.members = new Map(members.map(m => [m.id, m]));
     updateSubtitle();
+    refreshTicks();
+  });
+  es.addEventListener('read', (e) => {
+    const { clientId, ts } = JSON.parse(e.data);
+    const m = state.members.get(clientId);
+    if (m) m.lastRead = Math.max(m.lastRead || 0, ts);
+    refreshTicks();
   });
   es.addEventListener('join', (e) => {
     const { member } = JSON.parse(e.data);
@@ -110,7 +117,9 @@ function connectSSE() {
     }
   });
   es.addEventListener('message', (e) => {
-    appendMessage(JSON.parse(e.data).message);
+    const msg = JSON.parse(e.data).message;
+    appendMessage(msg);
+    if (msg.clientId !== state.clientId) sendRead(msg.ts);
   });
   es.onerror = () => {
     $('chatSubtitle').textContent = 'reconnecting…';
@@ -125,6 +134,32 @@ function updateSubtitle() {
 /* ================= Message rendering ================= */
 const GROUP_WINDOW = 5 * 60 * 1000;
 let lastRendered = null;
+const tickMap = new Map(); // msgId -> {el, ts}
+let lastReadSent = 0;
+
+function sendRead(ts) {
+  if (!ts || ts <= lastReadSent) return;
+  lastReadSent = ts;
+  api(`/api/rooms/${ROOM}/read`, {
+    method: 'POST',
+    body: JSON.stringify({ clientId: state.clientId, ts, pass: state.pass }),
+  }).catch(() => {});
+}
+
+function tickStatus(ts) {
+  const others = [...state.members.values()].filter(m => m.id !== state.clientId);
+  if (!others.length) return 'sent';
+  if (others.some(m => (m.lastRead || 0) >= ts)) return 'read';
+  return 'delivered';
+}
+
+function refreshTicks() {
+  for (const { el, ts } of tickMap.values()) {
+    const s = tickStatus(ts);
+    el.textContent = s === 'sent' ? '✓' : '✓✓';
+    el.classList.toggle('read', s === 'read');
+  }
+}
 
 function sameGroupId(a, b) {
   const aid = a.clientId || a.author, bid = b.clientId || b.author;
@@ -135,6 +170,7 @@ function sameDayTs(a, b) { return new Date(a).toDateString() === new Date(b).toD
 function renderHistory(msgs) {
   const box = $('messages');
   box.innerHTML = '';
+  tickMap.clear();
   for (let i = 0; i < msgs.length; i++) {
     const prev = msgs[i - 1], next = msgs[i + 1];
     const grouped = prev && sameGroupId(prev, msgs[i]);
@@ -147,6 +183,7 @@ function renderHistory(msgs) {
     ts: last.ts,
     bubble: box.lastElementChild?.querySelector('.bubble'),
   } : null;
+  if (last && last.clientId !== state.clientId) sendRead(last.ts);
 }
 
 function appendMessage(msg) {
@@ -197,11 +234,35 @@ function appendMessageEl(msg, { grouped = false, tail = true, scroll = true } = 
     wrap.appendChild(audio);
     bubble.appendChild(wrap);
   }
+  if (msg.file) {
+    const a = document.createElement('a');
+    a.className = 'file-chip';
+    a.href = msg.file.data;
+    a.download = msg.file.name || 'file';
+    const icon = document.createElement('span');
+    icon.className = 'file-icon';
+    icon.textContent = '📎';
+    const nameEl = document.createElement('span');
+    nameEl.className = 'file-name';
+    nameEl.textContent = msg.file.name || 'file';
+    const sizeEl = document.createElement('span');
+    sizeEl.className = 'file-size';
+    sizeEl.textContent = fmtSize(msg.file.data);
+    a.append(icon, nameEl, sizeEl);
+    bubble.appendChild(a);
+  }
   if (msg.text) bubble.appendChild(document.createTextNode(msg.text));
 
   const meta = document.createElement('span');
   meta.className = 'meta';
-  meta.innerHTML = `${fmtTime(msg.ts)}${mine ? ' <span class="ticks">✓✓</span>' : ''}`;
+  meta.appendChild(document.createTextNode(fmtTime(msg.ts)));
+  if (mine) {
+    meta.appendChild(document.createTextNode(' '));
+    const ticks = document.createElement('span');
+    ticks.className = 'ticks';
+    meta.appendChild(ticks);
+    tickMap.set(msg.id, { el: ticks, ts: msg.ts });
+  }
   bubble.appendChild(meta);
 
   row.appendChild(bubble);
@@ -211,6 +272,19 @@ function appendMessageEl(msg, { grouped = false, tail = true, scroll = true } = 
 
 function fmtTime(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+function fmtSize(dataUrl) {
+  const bytes = Math.round((dataUrl.length * 0.75));
+  if (bytes > 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+  return Math.max(1, Math.round(bytes / 1024)) + ' KB';
+}
+function readAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
 }
 function fmtDateChip(ts) {
   const d = new Date(ts), now = new Date();
@@ -282,12 +356,16 @@ $('fileInput').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   e.target.value = '';
   if (!file) return;
-  const dataUrl = await fileToResizedDataUrl(file);
-  if (dataUrl) {
-    const caption = textInput.value.trim();
-    textInput.value = '';
-    toggleSendMic();
-    await sendMessage({ image: dataUrl, text: caption });
+  if (file.size > 8 * 1024 * 1024) { toast('File too large (max ~8MB)'); return; }
+  const caption = textInput.value.trim();
+  textInput.value = '';
+  toggleSendMic();
+  if (file.type.startsWith('image/')) {
+    const dataUrl = await fileToResizedDataUrl(file);
+    if (dataUrl) await sendMessage({ image: dataUrl, text: caption });
+  } else {
+    const dataUrl = await readAsDataUrl(file);
+    await sendMessage({ file: { name: file.name, data: dataUrl }, text: caption });
   }
 });
 

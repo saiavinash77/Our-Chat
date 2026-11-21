@@ -115,8 +115,9 @@ async function handleApi(req, res, url) {
     const room = await loadRoom(code);
     const body = await readBody(req);
     if (!passOk(req, url, room, body)) return json(res, 401, { error: 'pass' });
-    const { clientId, author, text, replyTo, audio, image } = body;
-    if (!author || (!text?.trim() && !audio && !image)) return json(res, 400, { error: 'author and text, audio or image required' });
+    const { clientId, author, text, replyTo, audio, image, file } = body;
+    const hasFile = file && typeof file.data === 'string' && file.data.startsWith('data:') && file.data.length < 14_000_000;
+    if (!author || (!text?.trim() && !audio && !image && !hasFile)) return json(res, 400, { error: 'author and content required' });
     const msg = {
       id: crypto.randomUUID(),
       author,
@@ -124,6 +125,7 @@ async function handleApi(req, res, url) {
       text: (text || '').trim().slice(0, 4000),
       audio: typeof audio === 'string' && audio.startsWith('data:audio/') ? audio.slice(0, 8_000_000) : null,
       image: typeof image === 'string' && image.startsWith('data:image/') ? image.slice(0, 8_000_000) : null,
+      file: hasFile ? { name: String(file.name || 'file').slice(0, 120), data: file.data } : null,
       replyTo: replyTo || null,
       ts: Date.now(),
     };
@@ -142,11 +144,27 @@ async function handleApi(req, res, url) {
     if (!passOk(req, url, room, body)) return json(res, 401, { error: 'pass' });
     const { clientId, name } = body;
     if (!clientId || !name?.trim()) return json(res, 400, { error: 'clientId and name required' });
-    room.members.set(clientId, { id: clientId, name: name.trim().slice(0, 40), lastSeen: Date.now() });
+    const prev = room.members.get(clientId);
+    room.members.set(clientId, { id: clientId, name: name.trim().slice(0, 40), lastSeen: Date.now(), lastRead: prev?.lastRead || null });
     clientRooms.set(clientId, code);
     broadcastMembers(code);
     broadcast(code, { type: 'join', member: { id: clientId, name: name.trim(), lastSeen: Date.now() } });
     return json(res, 200, { ok: true, members: [...room.members.values()] });
+  }
+
+  // POST /api/rooms/:code/read { clientId, ts } — read receipt
+  if (req.method === 'POST' && parts[1] === 'rooms' && parts[3] === 'read') {
+    const code = parts[2];
+    const room = await loadRoom(code);
+    const body = await readBody(req);
+    if (!passOk(req, url, room, body)) return json(res, 401, { error: 'pass' });
+    const { clientId, ts } = body;
+    const member = room?.members.get(clientId);
+    if (member && typeof ts === 'number' && ts > (member.lastRead || 0)) {
+      member.lastRead = ts;
+      broadcast(code, { type: 'read', clientId, ts });
+    }
+    return json(res, 200, { ok: true });
   }
 
   // POST /api/rooms/:code/leave { clientId }

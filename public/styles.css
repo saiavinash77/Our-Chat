@@ -206,7 +206,25 @@ body {
   display: flex; align-items: center; gap: 2px;
   user-select: none;
 }
-.bubble .ticks { font-size: 15px; color: var(--wa-tick); letter-spacing: -3px; }
+.bubble .ticks { font-size: 15px; color: #8696a0; letter-spacing: -2px; }
+.bubble .ticks.read { color: var(--wa-tick); }
+
+.file-chip {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(0,0,0,.05); border-radius: 8px;
+  padding: 10px 12px; margin: 4px 0 6px;
+  text-decoration: none; color: inherit;
+  max-width: 260px; min-width: 200px;
+}
+.msg-row.mine .file-chip { background: rgba(0,0,0,.07); }
+.file-chip:hover { filter: brightness(.97); }
+.file-icon { font-size: 22px; flex-shrink: 0; }
+.file-name {
+  font-size: 14px; font-weight: 500; color: #00a5f4;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex: 1; min-width: 0;
+}
+.file-size { font-size: 12px; color: var(--wa-muted); flex-shrink: 0; }
 
 .bubble img.chat-img {
   display: block; max-width: 260px; max-height: 260px;
