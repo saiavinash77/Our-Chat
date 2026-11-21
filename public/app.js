@@ -6,6 +6,7 @@ const state = {
   clientId: localStorage.clientId || crypto.randomUUID(),
   pass: localStorage.wc_pass || '',
   members: new Map(),
+  lastSeen: new Map(),
 };
 localStorage.clientId = state.clientId;
 const AUTHOR = 'Me';
@@ -72,6 +73,9 @@ async function tryUnlock(pass, silent = false) {
   if (joinRes.members) {
     state.members = new Map(joinRes.members.map(m => [m.id, m]));
   }
+  if (joinRes.lastSeen) {
+    state.lastSeen = new Map(Object.entries(joinRes.lastSeen));
+  }
 
   $('lockView').classList.add('hidden');
   $('chatView').classList.remove('hidden');
@@ -93,8 +97,14 @@ function connectSSE() {
   const es = new EventSource(`/api/rooms/${ROOM}/events?clientId=${state.clientId}&pass=${encodeURIComponent(state.pass)}`);
 
   es.addEventListener('members', (e) => {
-    const { members } = JSON.parse(e.data);
+    const { members, lastSeen } = JSON.parse(e.data);
     state.members = new Map(members.map(m => [m.id, m]));
+    if (lastSeen) state.lastSeen = new Map(Object.entries(lastSeen));
+    if (othersOnline()) {
+      for (const t of tickMap.values()) {
+        if (t.status === 'sent') t.status = 'delivered';
+      }
+    }
     updateSubtitle();
     refreshTicks();
   });
@@ -102,6 +112,9 @@ function connectSSE() {
     const { clientId, ts } = JSON.parse(e.data);
     const m = state.members.get(clientId);
     if (m) m.lastRead = Math.max(m.lastRead || 0, ts);
+    for (const t of tickMap.values()) {
+      if (t.ts <= ts) t.status = 'read';
+    }
     refreshTicks();
   });
   es.addEventListener('join', (e) => {
@@ -141,9 +154,25 @@ async function reloadHistory() {
   }
 }
 
+function othersOnline() {
+  return [...state.members.values()].some(m => m.id !== state.clientId);
+}
+
+function fmtLastSeen(ts) {
+  const d = new Date(ts), now = new Date();
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return `today at ${time}`;
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return `yesterday at ${time}`;
+  return `${d.toLocaleDateString([], { day: 'numeric', month: 'short' })} at ${time}`;
+}
+
 function updateSubtitle() {
-  const others = [...state.members.values()].filter(m => m.id !== state.clientId);
-  $('chatSubtitle').textContent = others.length ? 'online' : 'waiting for them…';
+  if (othersOnline()) { $('chatSubtitle').textContent = 'online'; return; }
+  const seen = [...state.lastSeen.entries()]
+    .filter(([id]) => id !== state.clientId)
+    .map(([, ts]) => ts).sort((a, b) => b - a)[0];
+  $('chatSubtitle').textContent = seen ? `last seen ${fmtLastSeen(seen)}` : 'waiting for them…';
 }
 
 /* ================= Message rendering ================= */
@@ -162,18 +191,10 @@ function sendRead(ts) {
   }).catch(() => {});
 }
 
-function tickStatus(ts) {
-  const others = [...state.members.values()].filter(m => m.id !== state.clientId);
-  if (!others.length) return 'sent';
-  if (others.some(m => (m.lastRead || 0) >= ts)) return 'read';
-  return 'delivered';
-}
-
 function refreshTicks() {
-  for (const { el, ts } of tickMap.values()) {
-    const s = tickStatus(ts);
-    el.textContent = s === 'sent' ? '✓' : '✓✓';
-    el.classList.toggle('read', s === 'read');
+  for (const t of tickMap.values()) {
+    t.el.textContent = t.status === 'sent' ? '✓' : '✓✓';
+    t.el.classList.toggle('read', t.status === 'read');
   }
 }
 
@@ -281,7 +302,7 @@ function appendMessageEl(msg, { grouped = false, tail = true, scroll = true } = 
     const ticks = document.createElement('span');
     ticks.className = 'ticks';
     meta.appendChild(ticks);
-    tickMap.set(msg.id, { el: ticks, ts: msg.ts });
+    tickMap.set(msg.id, { el: ticks, ts: msg.ts, status: othersOnline() ? 'delivered' : 'sent' });
   }
   bubble.appendChild(meta);
 

@@ -30,15 +30,16 @@ function roomFile(code) {
 
 async function loadRoom(code) {
   if (rooms.has(code)) return rooms.get(code);
-  let messages = [], name = null, password = null;
+  let messages = [], name = null, password = null, lastSeen = {};
   try {
     const raw = await readFile(roomFile(code), 'utf8');
     const data = JSON.parse(raw);
     messages = data.messages || [];
     name = data.name || null;
     password = data.password || null;
+    lastSeen = data.lastSeen || {};
   } catch {}
-  const room = { messages, members: new Map(), name, password };
+  const room = { messages, members: new Map(), name, password, lastSeen };
   rooms.set(code, room);
   return room;
 }
@@ -46,7 +47,7 @@ async function loadRoom(code) {
 function saveRoom(code) {
   const room = rooms.get(code);
   if (!room) return;
-  writeFile(roomFile(code), JSON.stringify({ name: room.name, password: room.password, messages: room.messages })).catch(() => {});
+  writeFile(roomFile(code), JSON.stringify({ name: room.name, password: room.password, lastSeen: room.lastSeen, messages: room.messages })).catch(() => {});
 }
 
 function broadcast(code, event) {
@@ -62,7 +63,7 @@ function broadcastMembers(code) {
   const room = rooms.get(code);
   if (!room) return;
   const members = [...room.members.values()];
-  broadcast(code, { type: 'members', members });
+  broadcast(code, { type: 'members', members, lastSeen: room.lastSeen });
 }
 
 function newCode() {
@@ -146,10 +147,11 @@ async function handleApi(req, res, url) {
     if (!clientId || !name?.trim()) return json(res, 400, { error: 'clientId and name required' });
     const prev = room.members.get(clientId);
     room.members.set(clientId, { id: clientId, name: name.trim().slice(0, 40), lastSeen: Date.now(), lastRead: prev?.lastRead || null });
+    room.lastSeen[clientId] = Date.now();
     clientRooms.set(clientId, code);
     broadcastMembers(code);
     broadcast(code, { type: 'join', member: { id: clientId, name: name.trim(), lastSeen: Date.now() } });
-    return json(res, 200, { ok: true, members: [...room.members.values()] });
+    return json(res, 200, { ok: true, members: [...room.members.values()], lastSeen: room.lastSeen });
   }
 
   // POST /api/rooms/:code/edit { clientId, id, text }
@@ -194,6 +196,8 @@ async function handleApi(req, res, url) {
     const member = room?.members.get(clientId);
     if (member && typeof ts === 'number' && ts > (member.lastRead || 0)) {
       member.lastRead = ts;
+      member.lastSeen = Date.now();
+      room.lastSeen[clientId] = Date.now();
       broadcast(code, { type: 'read', clientId, ts });
     }
     return json(res, 200, { ok: true });
@@ -205,6 +209,7 @@ async function handleApi(req, res, url) {
     const room = rooms.get(code);
     const { clientId } = await readBody(req);
     if (room && clientId) {
+      room.lastSeen[clientId] = Date.now();
       room.members.delete(clientId);
       clientRooms.delete(clientId);
       broadcastMembers(code);
@@ -235,9 +240,12 @@ async function handleApi(req, res, url) {
       subscribers.get(code)?.delete(res);
       if (clientId) {
         const room = rooms.get(code);
-        if (room?.members.delete(clientId)) {
-          broadcastMembers(code);
-          broadcast(code, { type: 'leave', memberId: clientId });
+        if (room) {
+          room.lastSeen[clientId] = Date.now();
+          if (room.members.delete(clientId)) {
+            broadcastMembers(code);
+            broadcast(code, { type: 'leave', memberId: clientId });
+          }
         }
         clientRooms.delete(clientId);
       }
