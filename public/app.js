@@ -4,11 +4,11 @@ const ROOM = 'main';
 /* ================= State ================= */
 const state = {
   clientId: localStorage.clientId || crypto.randomUUID(),
-  name: localStorage.wc_name || '',
   pass: localStorage.wc_pass || '',
   members: new Map(),
 };
 localStorage.clientId = state.clientId;
+const AUTHOR = 'Me';
 
 function loadJSON(key, fallback) {
   try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
@@ -25,23 +25,11 @@ async function api(path, opts = {}) {
   return res.json();
 }
 
-const LOVE_EMOJIS = ['💕','❤️','💖','💗','💘','💝','🥰','😘','💋','💌','💐','🌹','💑','💏','🫶','✨','💫','🌙','⭐','💍'];
-function avatarGlyph(name) {
-  let h = 0;
-  for (const c of (name || 'us')) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return LOVE_EMOJIS[h % LOVE_EMOJIS.length];
-}
-function avatarColor(name) {
-  let h = 0;
-  for (const c of (name || '?')) h = (h * 31 + c.charCodeAt(0)) % 360;
-  return `hsl(${h}, 60%, 50%)`;
-}
-
 /* ================= Boot ================= */
 init();
 async function init() {
-  if (state.name && state.pass) {
-    const ok = await tryUnlock(state.name, state.pass, true);
+  if (state.pass) {
+    const ok = await tryUnlock(state.pass, true);
     if (ok) return;
   }
   showLock();
@@ -50,28 +38,24 @@ async function init() {
 function showLock() {
   $('lockView').classList.remove('hidden');
   $('chatView').classList.add('hidden');
-  $('lockName').value = state.name;
   $('lockPass').value = '';
-  $('lockName').focus();
+  $('lockPass').focus();
 }
 
-$('lockName').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('lockPass').focus(); });
 $('lockPass').addEventListener('keydown', (e) => { if (e.key === 'Enter') unlock(); });
 $('unlockBtn').addEventListener('click', unlock);
 
 async function unlock() {
-  const name = $('lockName').value.trim();
   const pass = $('lockPass').value;
-  if (!name) return $('lockError').textContent = 'Enter your name';
   if (!pass) return $('lockError').textContent = 'Enter the password';
-  const ok = await tryUnlock(name, pass);
+  const ok = await tryUnlock(pass);
   if (!ok) $('lockError').textContent = 'Wrong password 💔';
 }
 
-async function tryUnlock(name, pass, silent = false) {
-  state.name = name; state.pass = pass;
-  localStorage.wc_name = name;
+async function tryUnlock(pass, silent = false) {
+  state.pass = pass;
   localStorage.wc_pass = pass;
+  localStorage.removeItem('wc_name');
 
   const info = await api(`/api/rooms/${ROOM}`);
   if (info.error === 'pass') {
@@ -83,12 +67,11 @@ async function tryUnlock(name, pass, silent = false) {
 
   await api(`/api/rooms/${ROOM}/join`, {
     method: 'POST',
-    body: JSON.stringify({ clientId: state.clientId, name, pass }),
+    body: JSON.stringify({ clientId: state.clientId, name: AUTHOR, pass }),
   });
 
   $('lockView').classList.add('hidden');
   $('chatView').classList.remove('hidden');
-  $('chatAvatar').textContent = '💕';
   connectSSE();
   renderHistory(info.messages || []);
   scrollBottom();
@@ -113,17 +96,18 @@ function connectSSE() {
   es.addEventListener('join', (e) => {
     const { member } = JSON.parse(e.data);
     if (member.id !== state.clientId) {
-      toast(`${member.name} is here 💕`);
+      toast('They are here 💕');
       state.members.set(member.id, member);
       updateSubtitle();
     }
   });
   es.addEventListener('leave', (e) => {
     const { memberId } = JSON.parse(e.data);
-    const m = state.members.get(memberId);
-    if (m && memberId !== state.clientId) toast(`${m.name} left`);
-    state.members.delete(memberId);
-    updateSubtitle();
+    if (memberId !== state.clientId) {
+      toast('They left');
+      state.members.delete(memberId);
+      updateSubtitle();
+    }
   });
   es.addEventListener('message', (e) => {
     appendMessage(JSON.parse(e.data).message);
@@ -135,9 +119,7 @@ function connectSSE() {
 
 function updateSubtitle() {
   const others = [...state.members.values()].filter(m => m.id !== state.clientId);
-  $('chatSubtitle').textContent = others.length
-    ? others.map(m => `${m.name} 💕`).join(', ')
-    : 'waiting for them…';
+  $('chatSubtitle').textContent = others.length ? 'online 💕' : 'waiting for them…';
 }
 
 /* ================= Message rendering ================= */
@@ -195,13 +177,6 @@ function appendMessageEl(msg, { grouped = false, tail = true, scroll = true } = 
 
   const bubble = document.createElement('div');
   bubble.className = 'bubble' + (tail ? ' tail' : '');
-
-  if (!mine && !grouped) {
-    const sender = document.createElement('span');
-    sender.className = 'sender';
-    sender.textContent = msg.author;
-    bubble.appendChild(sender);
-  }
 
   if (msg.image) {
     const img = document.createElement('img');
@@ -264,7 +239,7 @@ $('composer').addEventListener('submit', async (e) => {
 async function sendMessage(payload) {
   await api(`/api/rooms/${ROOM}/messages`, {
     method: 'POST',
-    body: JSON.stringify({ clientId: state.clientId, author: state.name, pass: state.pass, ...payload }),
+    body: JSON.stringify({ clientId: state.clientId, author: AUTHOR, pass: state.pass, ...payload }),
   });
 }
 
