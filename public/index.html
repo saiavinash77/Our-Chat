@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Our Chat 💕</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ LOCK SCREEN ============ -->
+  <section id="lockView" class="view">
+    <div class="lock-card">
+      <div class="lock-hearts">💕</div>
+      <h1>Our Chat</h1>
+      <p class="lock-sub">Just the two of us �</p>
+      <input id="lockName" type="text" placeholder="Your name" maxlength="40" autocomplete="off">
+      <input id="lockPass" type="password" placeholder="Room password" autocomplete="off">
+      <button id="unlockBtn" class="btn-primary">Enter 💕</button>
+      <p id="lockError" class="error"></p>
+    </div>
+    <div class="lock-foot">🔒 Private room · only for us</div>
+  </section>
+
+  <!-- ============ CHAT VIEW ============ -->
+  <section id="chatView" class="view hidden">
+    <header class="wa-header chat-header">
+      <button class="wa-icon back-btn" id="lockBtn" title="Lock">🔒</button>
+      <div class="wa-avatar wa-avatar-love" id="chatAvatar">💕</div>
+      <div class="chat-header-info">
+        <div class="chat-title">Our Chat</div>
+        <div class="chat-subtitle" id="chatSubtitle">connecting…</div>
+      </div>
+      <div class="wa-header-icons">
+        <button class="wa-icon" title="Video call">📹</button>
+        <button class="wa-icon" title="Voice call">📞</button>
+        <button class="wa-icon" title="More">⋮</button>
+      </div>
+    </header>
+
+    <div class="wallpaper" id="messages"></div>
+
+    <div class="composer-wrap">
+      <div id="emojiPanel" class="emoji-panel hidden"></div>
+      <div id="recBar" class="rec-bar hidden">
+        <span class="rec-dot"></span><span id="recTime">0:00</span>
+        <span class="rec-hint">Recording…</span>
+        <button id="recCancel" class="rec-btn">✕</button>
+        <button id="recSend" class="rec-btn send">➤</button>
+      </div>
+      <form id="composer" class="composer">
+        <button type="button" class="wa-icon composer-icon" id="emojiBtn" title="Emoji">😊</button>
+        <input id="fileInput" type="file" accept="image/*" class="hidden">
+        <input id="textInput" type="text" placeholder="Message" autocomplete="off" maxlength="4000">
+        <button type="button" class="wa-icon composer-icon" id="attachBtn" title="Attach image">📎</button>
+        <button type="button" class="wa-icon composer-icon hidden" id="micBtn" title="Voice message">🎤</button>
+        <button type="submit" class="wa-icon composer-icon hidden" id="sendBtn" title="Send">➤</button>
+      </form>
+    </div>
+  </section>
+
+  <div id="toast" class="toast hidden"></div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
