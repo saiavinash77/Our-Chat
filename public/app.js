@@ -49,7 +49,7 @@ async function unlock() {
   const pass = $('lockPass').value;
   if (!pass) return $('lockError').textContent = 'Enter the password';
   const ok = await tryUnlock(pass);
-  if (!ok) $('lockError').textContent = 'Wrong password 💔';
+  if (!ok) $('lockError').textContent = 'Wrong password';
 }
 
 async function tryUnlock(pass, silent = false) {
@@ -103,7 +103,7 @@ function connectSSE() {
   es.addEventListener('join', (e) => {
     const { member } = JSON.parse(e.data);
     if (member.id !== state.clientId) {
-      toast('They are here 💕');
+      toast('They are here');
       state.members.set(member.id, member);
       updateSubtitle();
     }
@@ -128,7 +128,7 @@ function connectSSE() {
 
 function updateSubtitle() {
   const others = [...state.members.values()].filter(m => m.id !== state.clientId);
-  $('chatSubtitle').textContent = others.length ? 'online 💕' : 'waiting for them…';
+  $('chatSubtitle').textContent = others.length ? 'online' : 'waiting for them…';
 }
 
 /* ================= Message rendering ================= */
@@ -328,7 +328,7 @@ textInput.addEventListener('keydown', (e) => {
 });
 
 /* --- emoji panel --- */
-const EMOJIS = ['❤️','💕','💖','😘','😍','🥰','💋','💌','💐','🌹','💍','✨','💫','🌙','⭐','🥂','🍓','🍫','🧸','🎞️','💞','🫶','😏','😉','😚'];
+const EMOJIS = ['\u{1F600}','\u{1F602}','\u{1F979}','\u{1F60D}','\u{1F914}','\u{1F605}','\u{1F64F}','\u{1F44D}','\u{1F44E}','\u2764\u{FE0F}','\u{1F525}','\u{1F389}','\u{1F622}','\u{1F621}','\u{1F91D}','\u2728','\u{1F4AF}','\u{1F680}','\u26BD','\u{1F355}','\u2615','\u{1F382}','\u{1F339}','\u{1F634}','\u{1F917}'];
 const emojiPanel = $('emojiPanel');
 for (const e of EMOJIS) {
   const b = document.createElement('button');

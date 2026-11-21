@@ -9,7 +9,7 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const DATA_DIR = path.join(__dirname, 'data', 'rooms');
 const PORT = process.env.PORT || 3000;
 const MAIN_ROOM = 'main';
-const ROOM_PASSWORD = process.env.ROOM_PASSWORD || 'loveyou';
+const ROOM_PASSWORD = process.env.ROOM_PASSWORD || 'avii';
 
 // roomCode -> { messages: [], members: Map<clientId, {name, lastSeen}> }
 const rooms = new Map();
@@ -241,7 +241,7 @@ await ensureDataDir();
 // ensure the single main room exists and is password-protected
 {
   const main = await loadRoom(MAIN_ROOM);
-  main.name = 'Our Chat 💕';
+  main.name = 'Thallisaa';
   if (!main.password) { main.password = ROOM_PASSWORD; saveRoom(MAIN_ROOM); }
 }
 server.listen(PORT, () => {
