@@ -568,6 +568,18 @@ document.addEventListener('click', (e) => {
 });
 initThemePicker();
 
+/* --- dark mode --- */
+function applyDark(on) {
+  $('app').classList.toggle('dark', on);
+  localStorage.wc_dark = on ? '1' : '';
+  $('darkToggle').textContent = on ? '☀️ Light mode' : '🌙 Dark mode';
+}
+$('darkToggle').addEventListener('click', () => {
+  applyDark(!$('app').classList.contains('dark'));
+  $('themePanel').classList.add('hidden');
+});
+applyDark(localStorage.wc_dark === '1');
+
 /* ================= Toast ================= */
 let toastTimer;
 function toast(msg) {

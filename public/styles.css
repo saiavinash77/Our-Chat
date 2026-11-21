@@ -466,3 +466,49 @@ body {
 }
 .ctx-menu button:hover { background: rgba(255,255,255,.08); }
 .ctx-menu button.danger { color: #ff6b6b; }
+
+/* ===== Dark mode ===== */
+#app.dark {
+  --wa-in: #202c33;
+  --wa-out: #005c4b;
+  --wa-text: #e9edef;
+  --wa-muted: #8696a0;
+  --wa-grey: #111b21;
+  --wa-bg: #0b141a;
+  --wa-wallpaper: #0b141a;
+  --wa-border: #222d34;
+  color: #e9edef;
+}
+#app.dark .wallpaper {
+  background-color: #0b141a;
+  background-image:
+    radial-gradient(rgba(255,255,255,.03) 1.2px, transparent 1.2px),
+    radial-gradient(rgba(255,255,255,.02) 1.2px, transparent 1.2px);
+  background-size: 26px 26px, 26px 26px;
+  background-position: 0 0, 13px 13px;
+}
+#app.dark .wa-header { background: #202c33; }
+#app.dark .composer { background: #2a3942; }
+#app.dark .composer input[type=text] { color: #e9edef; }
+#app.dark .date-divider { background: #182229; color: #8696a0; }
+#app.dark .file-chip { background: rgba(255,255,255,.06); }
+#app.dark .file-name { color: #53bdeb; }
+#app.dark .theme-panel { background: #202c33; }
+#app.dark .emoji-panel { background: #202c33; }
+#app.dark .emoji-panel button:hover { background: #2a3942; }
+#app.dark .rec-bar { background: #2a3942; }
+#app.dark .lock-card { background: #202c33; color: #e9edef; }
+#app.dark .lock-card input {
+  background: #2a3942; border-color: #222d34; color: #e9edef;
+}
+#app.dark .lock-sub { color: #8696a0; }
+#app.dark .ctx-menu { background: #233138; }
+
+.dark-toggle {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; margin-top: 12px; padding: 10px 12px;
+  background: var(--wa-grey); border: none; border-radius: 10px;
+  font-family: inherit; font-size: 14px; font-weight: 600;
+  color: var(--wa-text); cursor: pointer; text-align: left;
+}
+.dark-toggle:hover { filter: brightness(.95); }
