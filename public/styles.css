@@ -258,10 +258,10 @@ body {
 }
 .composer input[type=text] {
   flex: 1; border: none; outline: none;
-  padding: 9px 6px; font-size: 15.5px;
+  padding: 9px 6px; font-size: 16px;
   background: transparent; min-width: 0;
 }
-.composer-icon { color: #54656f; padding: 8px 9px; font-size: 20px; }
+.composer-icon { color: #54656f; padding: 10px 11px; font-size: 20px; }
 .composer-icon.send { color: var(--wa-teal); }
 
 /* emoji panel */
@@ -386,7 +386,7 @@ body {
 .lock-sub { color: var(--wa-muted); font-size: 14px; margin-bottom: 22px; }
 .lock-card input {
   width: 100%; padding: 12px 14px; margin-bottom: 10px;
-  border: 1px solid #d1d7db; border-radius: 8px; font-size: 15px; outline: none;
+  border: 1px solid #d1d7db; border-radius: 8px; font-size: 16px; outline: none;
 }
 .lock-card input:focus { border-color: var(--wa-teal); }
 .lock-foot {
