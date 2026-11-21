@@ -65,16 +65,20 @@ async function tryUnlock(pass, silent = false) {
     return false;
   }
 
-  await api(`/api/rooms/${ROOM}/join`, {
+  const joinRes = await api(`/api/rooms/${ROOM}/join`, {
     method: 'POST',
     body: JSON.stringify({ clientId: state.clientId, name: AUTHOR, pass }),
   });
+  if (joinRes.members) {
+    state.members = new Map(joinRes.members.map(m => [m.id, m]));
+  }
 
   $('lockView').classList.add('hidden');
   $('chatView').classList.remove('hidden');
   connectSSE();
   renderHistory(info.messages || []);
   scrollBottom();
+  refreshTicks();
   updateSubtitle();
   return true;
 }
@@ -121,9 +125,20 @@ function connectSSE() {
     appendMessage(msg);
     if (msg.clientId !== state.clientId) sendRead(msg.ts);
   });
+  es.addEventListener('update', () => reloadHistory());
+  es.addEventListener('delete', () => reloadHistory());
   es.onerror = () => {
     $('chatSubtitle').textContent = 'reconnecting…';
   };
+}
+
+async function reloadHistory() {
+  const info = await api(`/api/rooms/${ROOM}`);
+  if (info.messages) {
+    renderHistory(info.messages);
+    scrollBottom();
+    refreshTicks();
+  }
 }
 
 function updateSubtitle() {
@@ -135,6 +150,7 @@ function updateSubtitle() {
 const GROUP_WINDOW = 5 * 60 * 1000;
 let lastRendered = null;
 const tickMap = new Map(); // msgId -> {el, ts}
+const msgStore = new Map(); // msgId -> msg
 let lastReadSent = 0;
 
 function sendRead(ts) {
@@ -171,6 +187,7 @@ function renderHistory(msgs) {
   const box = $('messages');
   box.innerHTML = '';
   tickMap.clear();
+  msgStore.clear();
   for (let i = 0; i < msgs.length; i++) {
     const prev = msgs[i - 1], next = msgs[i + 1];
     const grouped = prev && sameGroupId(prev, msgs[i]);
@@ -211,6 +228,8 @@ function appendMessageEl(msg, { grouped = false, tail = true, scroll = true } = 
 
   const row = document.createElement('div');
   row.className = `msg-row ${mine ? 'mine' : ''} ${grouped ? 'grouped' : ''}`;
+  row.dataset.mid = msg.id;
+  msgStore.set(msg.id, msg);
 
   const bubble = document.createElement('div');
   bubble.className = 'bubble' + (tail ? ' tail' : '');
@@ -255,7 +274,8 @@ function appendMessageEl(msg, { grouped = false, tail = true, scroll = true } = 
 
   const meta = document.createElement('span');
   meta.className = 'meta';
-  meta.appendChild(document.createTextNode(fmtTime(msg.ts)));
+  meta.appendChild(document.createTextNode(
+    (msg.edited ? 'edited ' : '') + fmtTime(msg.ts)));
   if (mine) {
     meta.appendChild(document.createTextNode(' '));
     const ticks = document.createElement('span');
@@ -441,6 +461,69 @@ function stopRecording(send) {
 
 $('recSend').addEventListener('click', () => stopRecording(true));
 $('recCancel').addEventListener('click', () => stopRecording(false));
+
+/* ================= Message context menu (edit/delete) ================= */
+const ctxMenu = $('ctxMenu');
+const messagesEl = $('messages');
+let ctxMsgId = null, lpTimer = null;
+
+function openCtxMenu(id, x, y) {
+  ctxMsgId = id;
+  ctxMenu.classList.remove('hidden');
+  const mw = 140, mh = 90;
+  const appRect = $('app').getBoundingClientRect();
+  let left = x - appRect.left + 8;
+  let top = y - appRect.top - 10;
+  if (left + mw > appRect.width - 8) left = appRect.width - mw - 8;
+  if (top + mh > appRect.height - 8) top = y - appRect.top - mh - 8;
+  ctxMenu.style.left = Math.max(8, left) + 'px';
+  ctxMenu.style.top = Math.max(8, top) + 'px';
+}
+function hideCtxMenu() { ctxMenu.classList.add('hidden'); ctxMsgId = null; }
+
+messagesEl.addEventListener('contextmenu', (e) => {
+  const row = e.target.closest('.msg-row.mine');
+  if (!row) return;
+  e.preventDefault();
+  openCtxMenu(row.dataset.mid, e.clientX, e.clientY);
+});
+messagesEl.addEventListener('touchstart', (e) => {
+  const row = e.target.closest('.msg-row.mine');
+  if (!row) return;
+  const id = row.dataset.mid;
+  const t = e.touches[0];
+  lpTimer = setTimeout(() => openCtxMenu(id, t.clientX, t.clientY), 500);
+}, { passive: true });
+['touchend', 'touchmove', 'touchcancel'].forEach(ev =>
+  messagesEl.addEventListener(ev, () => clearTimeout(lpTimer)));
+document.addEventListener('click', (e) => {
+  if (!ctxMenu.contains(e.target)) hideCtxMenu();
+});
+
+$('ctxEdit').addEventListener('click', async () => {
+  const m = msgStore.get(ctxMsgId);
+  hideCtxMenu();
+  if (!m) return;
+  const t = prompt('Edit message:', m.text || '');
+  if (t === null) return;
+  const text = t.trim();
+  if (!text || text === m.text) return;
+  await api(`/api/rooms/${ROOM}/edit`, {
+    method: 'POST',
+    body: JSON.stringify({ clientId: state.clientId, id: ctxMsgId, text, pass: state.pass }),
+  });
+});
+
+$('ctxDelete').addEventListener('click', async () => {
+  const id = ctxMsgId;
+  hideCtxMenu();
+  if (!id || !confirm('Delete this message?')) return;
+  await api(`/api/rooms/${ROOM}/delete`, {
+    method: 'POST',
+    body: JSON.stringify({ clientId: state.clientId, id, pass: state.pass }),
+  });
+  await reloadHistory();
+});
 
 /* ================= Theme picker ================= */
 const THEMES = [

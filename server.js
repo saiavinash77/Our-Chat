@@ -152,6 +152,38 @@ async function handleApi(req, res, url) {
     return json(res, 200, { ok: true, members: [...room.members.values()] });
   }
 
+  // POST /api/rooms/:code/edit { clientId, id, text }
+  if (req.method === 'POST' && parts[1] === 'rooms' && parts[3] === 'edit') {
+    const code = parts[2];
+    const room = await loadRoom(code);
+    const body = await readBody(req);
+    if (!passOk(req, url, room, body)) return json(res, 401, { error: 'pass' });
+    const { clientId, id, text } = body;
+    const msg = room.messages.find(m => m.id === id);
+    if (!msg || msg.clientId !== clientId) return json(res, 403, { error: 'forbidden' });
+    if (!text?.trim()) return json(res, 400, { error: 'text required' });
+    msg.text = text.trim().slice(0, 4000);
+    msg.edited = true;
+    saveRoom(code);
+    broadcast(code, { type: 'update', message: msg });
+    return json(res, 200, { message: msg });
+  }
+
+  // POST /api/rooms/:code/delete { clientId, id }
+  if (req.method === 'POST' && parts[1] === 'rooms' && parts[3] === 'delete') {
+    const code = parts[2];
+    const room = await loadRoom(code);
+    const body = await readBody(req);
+    if (!passOk(req, url, room, body)) return json(res, 401, { error: 'pass' });
+    const { clientId, id } = body;
+    const idx = room.messages.findIndex(m => m.id === id);
+    if (idx === -1 || room.messages[idx].clientId !== clientId) return json(res, 403, { error: 'forbidden' });
+    room.messages.splice(idx, 1);
+    saveRoom(code);
+    broadcast(code, { type: 'delete', id });
+    return json(res, 200, { ok: true });
+  }
+
   // POST /api/rooms/:code/read { clientId, ts } — read receipt
   if (req.method === 'POST' && parts[1] === 'rooms' && parts[3] === 'read') {
     const code = parts[2];
